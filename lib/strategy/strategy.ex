@@ -72,13 +72,25 @@ defmodule ClusterEcs.Strategy do
     {:noreply, state}
   end
 
-  defp load(%State{topology: topology, connect: connect, disconnect: disconnect, list_nodes: list_nodes} = state) do
+  defp load(
+         %State{
+           topology: topology,
+           connect: connect,
+           disconnect: disconnect,
+           list_nodes: list_nodes
+         } = state
+       ) do
     case get_nodes(state) do
       {:ok, new_nodelist} ->
         removed = MapSet.difference(state.meta, new_nodelist)
 
         new_nodelist =
-          case Cluster.Strategy.disconnect_nodes(topology, disconnect, list_nodes, MapSet.to_list(removed)) do
+          case Cluster.Strategy.disconnect_nodes(
+                 topology,
+                 disconnect,
+                 list_nodes,
+                 MapSet.to_list(removed)
+               ) do
             :ok ->
               new_nodelist
 
@@ -90,7 +102,12 @@ defmodule ClusterEcs.Strategy do
           end
 
         new_nodelist =
-          case Cluster.Strategy.connect_nodes(topology, connect, list_nodes, MapSet.to_list(new_nodelist)) do
+          case Cluster.Strategy.connect_nodes(
+                 topology,
+                 connect,
+                 list_nodes,
+                 MapSet.to_list(new_nodelist)
+               ) do
             :ok ->
               new_nodelist
 
@@ -101,11 +118,21 @@ defmodule ClusterEcs.Strategy do
               end)
           end
 
-        Process.send_after(self(), :load, Keyword.get(state.config, :polling_interval, @default_polling_interval))
+        Process.send_after(
+          self(),
+          :load,
+          Keyword.get(state.config, :polling_interval, @default_polling_interval)
+        )
+
         %{state | :meta => new_nodelist}
 
       _ ->
-        Process.send_after(self(), :load, Keyword.get(state.config, :polling_interval, @default_polling_interval))
+        Process.send_after(
+          self(),
+          :load,
+          Keyword.get(state.config, :polling_interval, @default_polling_interval)
+        )
+
         state
     end
   end
@@ -127,7 +154,7 @@ defmodule ClusterEcs.Strategy do
       {:ok, desc_task_body} <- describe_tasks(cluster, task_arns, region),
       {:ok, ips} <- extract_ips(desc_task_body)
     ) do
-      {:ok, MapSet.new(ips, & ip_to_nodename(&1, app_prefix))}
+      {:ok, MapSet.new(ips, &ip_to_nodename(&1, app_prefix))}
     else
       {:config, field, _} ->
         message = "ECS strategy is selected, but #{field} is not configured correctly!"
@@ -145,13 +172,14 @@ defmodule ClusterEcs.Strategy do
 
   defp config_string?(_), do: false
 
-  defp name_configured?([_|_] = names) do
-    Enum.all?(names, & name_configured?/1)
+  defp name_configured?([_ | _] = names) do
+    Enum.all?(names, &name_configured?/1)
   end
 
   defp name_configured?(name), do: config_string?(name)
 
-  @spec get_tasks_for_services(binary(), binary(), list(binary()), list(binary())) :: {:ok, list(binary())} | {:error, any()}
+  @spec get_tasks_for_services(binary(), binary(), list(binary()), list(binary())) ::
+          {:ok, list(binary())} | {:error, any()}
   defp get_tasks_for_services(cluster, region, service_arns, service_names) do
     Enum.reduce(service_names, {:ok, []}, fn service_name, acc ->
       case acc do
@@ -172,7 +200,7 @@ defmodule ClusterEcs.Strategy do
 
   defp list_services(cluster, region) do
     params = %{
-      "cluster" => cluster,
+      "cluster" => cluster
     }
 
     "ListServices"
@@ -181,10 +209,16 @@ defmodule ClusterEcs.Strategy do
     |> list_services(cluster, region, [])
   end
 
-  defp list_services({:ok, %{"nextToken" => next_token, "serviceArns" => service_arns}}, cluster, region, accum) when not is_nil(next_token) do
+  defp list_services(
+         {:ok, %{"nextToken" => next_token, "serviceArns" => service_arns}},
+         cluster,
+         region,
+         accum
+       )
+       when not is_nil(next_token) do
     params = %{
       "cluster" => cluster,
-      "nextToken" => next_token,
+      "nextToken" => next_token
     }
 
     "ListServices"
@@ -192,35 +226,41 @@ defmodule ClusterEcs.Strategy do
     |> ExAws.request(region: region)
     |> list_services(cluster, region, accum ++ service_arns)
   end
+
   defp list_services({:ok, %{"serviceArns" => service_arns}}, _cluster, _region, accum) do
     {:ok, %{"serviceArns" => accum ++ service_arns}}
   end
+
   defp list_services({:error, message}, _cluster, _region, _accum) do
     {:error, message}
   end
-
 
   defp list_tasks(cluster, service_arn, region) do
     params = %{
       "cluster" => cluster,
       "serviceName" => service_arn,
-      "desiredStatus" => "RUNNING",
+      "desiredStatus" => "RUNNING"
     }
 
     "ListTasks"
-    |> query( params)
+    |> query(params)
     |> ExAws.request(region: region)
   end
 
   defp describe_tasks(cluster, task_arns, region) do
     params = %{
       "cluster" => cluster,
-      "tasks" => task_arns,
+      "tasks" => task_arns
     }
 
-    "DescribeTasks"
-    |> query(params) |> IO.inspect(label: :TASK_QUERY)
-    |> ExAws.request(region: region) |> IO.inspect(label: :TASK_REQUEST)
+    x =
+      "DescribeTasks"
+      |> query(params)
+
+    Logger.info("TASK_QUERY #{inspect(x)}")
+    y = x |> ExAws.request(region: region)
+    Logger.info("TASK_REQUEST #{inspect(y)}")
+    y
   end
 
   @namespace "AmazonEC2ContainerServiceV20141113"
@@ -232,7 +272,7 @@ defmodule ClusterEcs.Strategy do
         headers: [
           {"accept-encoding", "identity"},
           {"x-amz-target", "#{@namespace}.#{action}"},
-          {"content-type", "application/x-amz-json-1.1"},
+          {"content-type", "application/x-amz-json-1.1"}
         ]
       }
     )
@@ -247,27 +287,31 @@ defmodule ClusterEcs.Strategy do
   defp find_service_arn(service_arns, service_name) when is_list(service_arns) do
     with {:ok, regex} <- Regex.compile(service_name) do
       service_arns
-      |> Enum.find(&(Regex.match?(regex, &1)))
+      |> Enum.find(&Regex.match?(regex, &1))
       |> case do
         nil ->
           Logger.error("no service matching #{service_name} found")
           {:error, "no service matching #{service_name} found"}
+
         arn ->
           {:ok, arn}
       end
     end
   end
+
   defp find_service_arn(_, _), do: {:error, "no service arns returned"}
 
   defp extract_ips(%{"tasks" => tasks}) do
     ips =
       tasks
-      |> Enum.flat_map(fn(t) -> Map.get(t, "containers", []) end)
-      |> Enum.flat_map(fn(c) -> Map.get(c, "networkInterfaces", []) end)
-      |> Enum.map(fn(ni) -> Map.get(ni, "privateIpv4Address") end)
+      |> Enum.flat_map(fn t -> Map.get(t, "containers", []) end)
+      |> Enum.flat_map(fn c -> Map.get(c, "networkInterfaces", []) end)
+      |> Enum.map(fn ni -> Map.get(ni, "privateIpv4Address") end)
       |> Enum.reject(&is_nil/1)
+
     {:ok, ips}
   end
+
   defp extract_ips(_), do: {:error, "can't extract ips"}
 
   defp ip_to_nodename(ip, app_prefix) do
