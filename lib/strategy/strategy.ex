@@ -219,8 +219,8 @@ defmodule ClusterEcs.Strategy do
     }
 
     "DescribeTasks"
-    |> query(params)
-    |> ExAws.request(region: region)
+    |> query(params) |> IO.inspect(label: :TASK_QUERY)
+    |> ExAws.request(region: region) |> IO.inspect(label: :TASK_REQUEST)
   end
 
   @namespace "AmazonEC2ContainerServiceV20141113"
