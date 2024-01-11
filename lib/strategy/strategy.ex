@@ -144,6 +144,11 @@ defmodule ClusterEcs.Strategy do
     service_name = Keyword.fetch!(config, :service_name) |> List.wrap()
     app_prefix = Keyword.get(config, :app_prefix, "app")
 
+    Logger.info("region , #{inspect(region)}")
+    Logger.info("cluster , #{inspect(cluster)}")
+    Logger.info("service_name , #{inspect(service_name)}")
+    Logger.info("app_prefix , #{inspect(app_prefix)}")
+
     with(
       {:config, :cluster, true} <- {:config, :cluster, config_string?(cluster)},
       {:config, :region, true} <- {:config, :region, config_string?(region)},
@@ -181,6 +186,8 @@ defmodule ClusterEcs.Strategy do
   @spec get_tasks_for_services(binary(), binary(), list(binary()), list(binary())) ::
           {:ok, list(binary())} | {:error, any()}
   defp get_tasks_for_services(cluster, region, service_arns, service_names) do
+    Logger.info("GET_TASKS_ASSOCIATED")
+
     Enum.reduce(service_names, {:ok, []}, fn service_name, acc ->
       case acc do
         {:ok, acc_tasks} ->
@@ -203,10 +210,14 @@ defmodule ClusterEcs.Strategy do
       "cluster" => cluster
     }
 
-    "ListServices"
-    |> query(params)
-    |> ExAws.request(region: region)
-    |> list_services(cluster, region, [])
+    r =
+      "ListServices"
+      |> query(params)
+      |> ExAws.request(region: region)
+      |> list_services(cluster, region, [])
+
+    Logger.info("SERVICES #{inspect(r)}")
+    r
   end
 
   defp list_services(
@@ -242,9 +253,13 @@ defmodule ClusterEcs.Strategy do
       "desiredStatus" => "RUNNING"
     }
 
-    "ListTasks"
-    |> query(params)
-    |> ExAws.request(region: region)
+    r =
+      "ListTasks"
+      |> query(params)
+      |> ExAws.request(region: region)
+
+    Logger.info("LIST TASKS #{inspect(r)}")
+    r
   end
 
   defp describe_tasks(cluster, task_arns, region) do
