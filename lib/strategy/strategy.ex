@@ -188,21 +188,25 @@ defmodule ClusterEcs.Strategy do
   defp get_tasks_for_services(cluster, region, service_arns, service_names) do
     Logger.info("GET_TASKS_ASSOCIATED")
 
-    Enum.reduce(service_names, {:ok, []}, fn service_name, acc ->
-      case acc do
-        {:ok, acc_tasks} ->
-          with(
-            {:ok, service_arn} <- find_service_arn(service_arns, service_name),
-            {:ok, list_task_body} <- list_tasks(cluster, service_arn, region),
-            {:ok, task_arns} <- extract_task_arns(list_task_body)
-          ) do
-            {:ok, acc_tasks ++ task_arns}
-          end
+    r =
+      Enum.reduce(service_names, {:ok, []}, fn service_name, acc ->
+        case acc do
+          {:ok, acc_tasks} ->
+            with(
+              {:ok, service_arn} <- find_service_arn(service_arns, service_name),
+              {:ok, list_task_body} <- list_tasks(cluster, service_arn, region),
+              {:ok, task_arns} <- extract_task_arns(list_task_body)
+            ) do
+              {:ok, acc_tasks ++ task_arns}
+            end
 
-        other ->
-          other
-      end
-    end)
+          other ->
+            other
+        end
+      end)
+
+    Logger.info("Task for services #{inspect(r)}")
+    r
   end
 
   defp list_services(cluster, region) do
