@@ -304,8 +304,10 @@ defmodule ClusterEcs.Strategy do
   defp extract_service_arns(_), do: {:error, "unknown service arns response"}
 
   defp find_service_arn(service_arns, service_name) when is_list(service_arns) do
-    with {:ok, regex} <- Regex.compile(service_name) do
+    with {:ok, regex} <- Regex.compile(service_name),
+         {:ok, exclude_regex} <- Regex.compile("-internal$") do
       service_arns
+      |> Enum.filter(&(not Regex.match?(exclude_regex, &1)))
       |> Enum.find(&Regex.match?(regex, &1))
       |> case do
         nil ->
