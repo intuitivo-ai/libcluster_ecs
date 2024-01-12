@@ -205,7 +205,7 @@ defmodule ClusterEcs.Strategy do
         end
       end)
 
-    Logger.info("Task for services #{inspect(r)}")
+    IO.inspect(r, label: :TASK_FOR)
     r
   end
 
