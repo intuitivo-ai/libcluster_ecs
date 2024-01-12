@@ -144,11 +144,6 @@ defmodule ClusterEcs.Strategy do
     service_name = Keyword.fetch!(config, :service_name) |> List.wrap()
     app_prefix = Keyword.get(config, :app_prefix, "app")
 
-    Logger.info("region , #{inspect(region)}")
-    Logger.info("cluster , #{inspect(cluster)}")
-    Logger.info("service_name , #{inspect(service_name)}")
-    Logger.info("app_prefix , #{inspect(app_prefix)}")
-
     with(
       {:config, :cluster, true} <- {:config, :cluster, config_string?(cluster)},
       {:config, :region, true} <- {:config, :region, config_string?(region)},
@@ -186,27 +181,21 @@ defmodule ClusterEcs.Strategy do
   @spec get_tasks_for_services(binary(), binary(), list(binary()), list(binary())) ::
           {:ok, list(binary())} | {:error, any()}
   defp get_tasks_for_services(cluster, region, service_arns, service_names) do
-    Logger.info("GET_TASKS_ASSOCIATED")
+    Enum.reduce(service_names, {:ok, []}, fn service_name, acc ->
+      case acc do
+        {:ok, acc_tasks} ->
+          with(
+            {:ok, service_arn} <- find_service_arn(service_arns, service_name),
+            {:ok, list_task_body} <- list_tasks(cluster, service_arn, region),
+            {:ok, task_arns} <- extract_task_arns(list_task_body)
+          ) do
+            {:ok, acc_tasks ++ task_arns}
+          end
 
-    r =
-      Enum.reduce(service_names, {:ok, []}, fn service_name, acc ->
-        case acc do
-          {:ok, acc_tasks} ->
-            with(
-              {:ok, service_arn} <- find_service_arn(service_arns, service_name),
-              {:ok, list_task_body} <- list_tasks(cluster, service_arn, region),
-              {:ok, task_arns} <- extract_task_arns(list_task_body)
-            ) do
-              {:ok, acc_tasks ++ task_arns}
-            end
-
-          other ->
-            other
-        end
-      end)
-
-    IO.inspect(r, label: :TASK_FOR)
-    r
+        other ->
+          other
+      end
+    end)
   end
 
   defp list_services(cluster, region) do
@@ -214,14 +203,10 @@ defmodule ClusterEcs.Strategy do
       "cluster" => cluster
     }
 
-    r =
-      "ListServices"
-      |> query(params)
-      |> ExAws.request(region: region)
-      |> list_services(cluster, region, [])
-
-    Logger.info("SERVICES #{inspect(r)}")
-    r
+    "ListServices"
+    |> query(params)
+    |> ExAws.request(region: region)
+    |> list_services(cluster, region, [])
   end
 
   defp list_services(
@@ -257,13 +242,9 @@ defmodule ClusterEcs.Strategy do
       "desiredStatus" => "RUNNING"
     }
 
-    r =
-      "ListTasks"
-      |> query(params)
-      |> ExAws.request(region: region)
-
-    Logger.info("LIST TASKS #{inspect(r)}")
-    r
+    "ListTasks"
+    |> query(params)
+    |> ExAws.request(region: region)
   end
 
   defp describe_tasks(cluster, task_arns, region) do
@@ -272,14 +253,9 @@ defmodule ClusterEcs.Strategy do
       "tasks" => task_arns
     }
 
-    x =
-      "DescribeTasks"
-      |> query(params)
-
-    Logger.info("TASK_QUERY #{inspect(x)}")
-    y = x |> ExAws.request(region: region)
-    Logger.info("TASK_REQUEST #{inspect(y)}")
-    y
+    "DescribeTasks"
+    |> query(params)
+    |> ExAws.request(region: region)
   end
 
   @namespace "AmazonEC2ContainerServiceV20141113"
